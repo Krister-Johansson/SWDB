@@ -1,0 +1,13 @@
+node_modules
+.DS_Store
+dist
+.output
+.nitro
+.tanstack
+.vinxi
+*.local
+.env*
+*.tsbuildinfo
+
+# Local SWDB data: SQLite file, artifacts, workspaces
+.data
