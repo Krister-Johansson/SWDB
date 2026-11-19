@@ -145,7 +145,8 @@ async function run(options: {
       if ("finishReason" in chunk) trace.finish = String(chunk.finishReason)
     }
   } catch (error) {
-    trace.error = (error as Error).name
+    // A thrown value that is not an Error gets its own name, so it cannot pass as a clean exit.
+    trace.error = error instanceof Error ? error.name : "NonErrorThrown"
   }
   trace.signalAborted = abortController.signal.aborted
   return trace
