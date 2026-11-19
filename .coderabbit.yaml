@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en
+
+chat:
+  auto_reply: true
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_approvals:
+    enabled: false
+
+  # Generated files and the lockfile. biome.json ignores the same generated file.
+  path_filters:
+    - "!**/routeTree.gen.ts"
+    - "!**/pnpm-lock.yaml"
+    - "!**/dist/**"
+
+  path_instructions:
+    - path: "spikes/**"
+      instructions: |
+        These are one-off experiments that answer a single question each. Their results are in spikes/README.md.
+        Review them for wrong conclusions and for tests that can pass without proving the claim.
+        Do not ask for production error handling, abstractions or test coverage here.
+    - path: "{apps,packages}/**/*.{ts,tsx}"
+      instructions: |
+        SWDB runs on one machine as two Node.js processes (web and worker) that share one SQLite file in WAL mode.
+        - Flag any code path where a secret value can reach a model prompt, a tool result, a log line or the run_events table. Agents refer to secrets by ID and the harness substitutes the value at call time.
+        - Flag a tool call that the harness could execute twice after a crash. A recorded call with no result gets an "interrupted" result and is not re-run.
+        - Flag servers that listen on anything other than 127.0.0.1.
+        - TypeScript runs through Node type stripping, so flag syntax that is not erasable (enums, namespaces, parameter properties).
+
+  tools:
+    biome:
+      enabled: true
