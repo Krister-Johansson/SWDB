@@ -11,13 +11,13 @@ Each folder holds the code and result of one spike issue. Results are from 2026-
 
 ## SP2
 
-Two processes wrote to one WAL-mode file for 8 seconds. The parent gives both the same start and end time. The run passes only if neither saw `SQLITE_BUSY`, every row is in the file afterwards, both wrote during a shared stretch of at least 4 seconds, and at least five of the worker's long transactions had a web write waiting on them.
+Two processes wrote to one WAL-mode file for 8 seconds. The parent gives both the same start and end time. The run passes only if neither saw `SQLITE_BUSY`, every row is in the file afterwards, both wrote during a shared stretch of at least 4 seconds, and at least three of the worker's long transactions each blocked a different web write. A web write counts as blocked when it started before the transaction ended and finished after it. SQLite does not report lock waits, so this is timing evidence.
 
-| Busy timeout | Web rows | Worker rows | `SQLITE_BUSY` | Longest wait, web | Longest wait, worker | Long transactions with a web write waiting |
-| ------------ | -------- | ----------- | ------------- | ----------------- | -------------------- | ------------------------------------------ |
-| 5,000 ms     | 717,650  | 164,061     | 0             | 789 ms            | 893 ms               | 9 of 9                                     |
-| 2,000 ms     | 531,726  | 197,153     | 0             | 1,722 ms          | 879 ms               | 10 of 10                                   |
-| 1,000 ms     | 639,881  | 162,380     | 0             | 985 ms            | 882 ms               | 10 of 10                                   |
+| Busy timeout | Web rows | Worker rows | `SQLITE_BUSY` | Longest wait, web | Longest wait, worker | Long transactions that overlap a slow web write |
+| ------------ | -------- | ----------- | ------------- | ----------------- | -------------------- | ----------------------------------------------- |
+| 5,000 ms     | 717,650  | 164,061     | 0             | 789 ms            | 893 ms               | 9 of 9                                          |
+| 2,000 ms     | 531,726  | 197,153     | 0             | 1,722 ms          | 879 ms               | 10 of 10                                        |
+| 1,000 ms     | 639,881  | 162,380     | 0             | 985 ms            | 882 ms               | 10 of 10                                        |
 
 Earlier runs with 5,000 ms measured single waits of 1,620 ms and 2,026 ms, so the waits vary between runs.
 

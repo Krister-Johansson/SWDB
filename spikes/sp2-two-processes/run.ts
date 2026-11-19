@@ -6,7 +6,8 @@
 // The parent starts both children, waits until both have the file open, and gives them the
 // same start and end time, so the two workloads overlap for the whole run.
 // Pass: zero SQLITE_BUSY errors, every row both processes wrote is in the file afterwards,
-// both processes wrote throughout the shared window, and the worker held long transactions in it.
+// both processes wrote throughout the shared window, and web writes waited on the worker's
+// long transactions.
 import { fork } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -138,9 +139,18 @@ if (role === "web" || role === "worker") {
   // wait is the contention this spike is about.
   const overlapMs =
     Math.min(web.lastWriteAt, worker.lastWriteAt) - Math.max(web.firstWriteAt, worker.firstWriteAt)
-  const contended = worker.longTx.filter(([start, end]) =>
-    web.waits.some(([from, to]) => from < end && to > start),
-  ).length
+  // A web write that was blocked by a long transaction starts before the transaction ends
+  // and cannot finish until it has committed. Each web write counts for one transaction only.
+  // SQLite does not report lock waits, so this is timing evidence: a web process that paused
+  // for another reason at the end of several transactions would also satisfy it. One web
+  // write can wait through more than one transaction, so not every transaction gets a match
+  // and the run asks for three.
+  const used = new Set<number>()
+  const contended = worker.longTx.filter(([, end]) => {
+    const i = web.waits.findIndex(([from, to], n) => !used.has(n) && from < end && to >= end - 1)
+    if (i >= 0) used.add(i)
+    return i >= 0
+  }).length
   console.table(
     results.map(({ longTx, waits, ...r }) => ({
       ...r,
@@ -157,7 +167,7 @@ if (role === "web" || role === "worker") {
     runs.n === web.written &&
     events.n === worker.written &&
     overlapMs >= DURATION_MS / 2 &&
-    contended >= 5
+    contended >= 3
   console.log(pass ? "PASS" : "FAIL")
   process.exit(pass ? 0 : 1)
 }
