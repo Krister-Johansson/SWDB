@@ -11,7 +11,17 @@ Each folder holds the code and result of one spike issue. Results are from 2026-
 
 ## SP2
 
-Two processes wrote to one WAL-mode file for 8 seconds with `busy_timeout = 5000`. The parent gives both the same start and end time, and the run passes only if both wrote during a shared stretch of at least 4 seconds and the worker held at least five long transactions. In the last run the "web" process inserted 840,156 rows and the "worker" appended 102,702 event rows, including eight 150 ms write transactions. Neither saw `SQLITE_BUSY`, every row was in the file afterwards, and the two wrote side by side for 6,801 ms. The longest single write waited 1,620 ms in the web process and 1,616 ms in the worker, and an earlier run measured 2,026 ms. These waits happen while the other process writes in a tight loop, which real trigger traffic does not do, but they show that a 5 second busy timeout is needed and a short one would fail.
+Two processes wrote to one WAL-mode file for 8 seconds. The parent gives both the same start and end time. The run passes only if neither saw `SQLITE_BUSY`, every row is in the file afterwards, both wrote during a shared stretch of at least 4 seconds, and at least five of the worker's long transactions had a web write waiting on them.
+
+| Busy timeout | Web rows | Worker rows | `SQLITE_BUSY` | Longest wait, web | Longest wait, worker | Long transactions with a web write waiting |
+| ------------ | -------- | ----------- | ------------- | ----------------- | -------------------- | ------------------------------------------ |
+| 5,000 ms     | 717,650  | 164,061     | 0             | 789 ms            | 893 ms               | 9 of 9                                     |
+| 2,000 ms     | 531,726  | 197,153     | 0             | 1,722 ms          | 879 ms               | 10 of 10                                   |
+| 1,000 ms     | 639,881  | 162,380     | 0             | 985 ms            | 882 ms               | 10 of 10                                   |
+
+Earlier runs with 5,000 ms measured single waits of 1,620 ms and 2,026 ms, so the waits vary between runs.
+
+The runs do not show that 5 seconds is required: the same workload also passed with 1 and 2 seconds. A wait is long only while the other process writes in a tight loop, which real trigger traffic does not do. SWDB keeps `busy_timeout = 5000` as a margin, not because a shorter value failed. Set `SP2_BUSY_TIMEOUT_MS` to run the workload with another value.
 
 ## SP3
 

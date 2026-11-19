@@ -72,6 +72,7 @@ type Trace = {
   decisions: { proceed: boolean; spent: number; overBudget: boolean }[]
   chunkTypes: Record<string, number>
   abortFired: boolean
+  signalAborted: boolean
   finish: string | undefined
   error: string | undefined
 }
@@ -87,6 +88,7 @@ async function run(options: {
     decisions: [],
     chunkTypes: {},
     abortFired: false,
+    signalAborted: false,
     finish: undefined,
     error: undefined,
   }
@@ -145,6 +147,7 @@ async function run(options: {
   } catch (error) {
     trace.error = (error as Error).name
   }
+  trace.signalAborted = abortController.signal.aborted
   return trace
 }
 
@@ -195,12 +198,18 @@ const checks = {
     budget.error === undefined &&
     lastBudgetDecision?.proceed === false &&
     lastBudgetDecision.overBudget === true,
-  // The abort fired on the first tool call chunk, and the run then made no further model
-  // call and never reached the second tool.
+  // The abort fired on the first tool call chunk. The run then ended quietly or with an
+  // AbortError and nothing else, made no further model call, ran no tool and produced no
+  // tool result. The full and budget runs must end without any error.
   "5 abort stops the run":
     aborted.abortFired &&
+    aborted.signalAborted &&
+    (aborted.error === undefined || aborted.error === "AbortError") &&
     requests(aborted) === 1 &&
-    !abortedCalls.some((c) => c.startsWith("carrier_status")),
+    abortedCalls.length === 0 &&
+    aborted.chunkTypes.TOOL_CALL_RESULT === undefined &&
+    full.error === undefined &&
+    !full.signalAborted,
 }
 
 console.log(
@@ -217,6 +226,8 @@ console.log(
       },
       aborted: {
         abortFired: aborted.abortFired,
+        signalAborted: aborted.signalAborted,
+        chunkTypes: aborted.chunkTypes,
         usage: aborted.usage,
         calls: abortedCalls,
         order: aborted.order,

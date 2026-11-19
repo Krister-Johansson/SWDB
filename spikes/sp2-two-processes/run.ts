@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url"
 import { openDb } from "../../packages/db/src/index.ts"
 
 const DURATION_MS = 8000
+// SP2_BUSY_TIMEOUT_MS runs the same workload with another busy timeout, to see where it fails.
+const BUSY_TIMEOUT_MS = Number(process.env.SP2_BUSY_TIMEOUT_MS ?? 5000)
 const role = process.argv[2]
 const path = process.argv[3]
 
@@ -25,12 +27,16 @@ type Result = {
   maxWaitMs: number
   firstWriteAt: number
   lastWriteAt: number
-  longTx: number
+  // Worker: the time each long transaction held the write lock.
+  longTx: Interval[]
+  // Every write attempt that took over 20 ms, which means it waited for the other process.
+  waits: Interval[]
 }
+type Interval = [start: number, end: number]
 type Window = { start: number; end: number }
 
 function work(role: "web" | "worker", path: string, window: Window): Result {
-  const { sqlite } = openDb({ path })
+  const { sqlite } = openDb({ path, busyTimeoutMs: BUSY_TIMEOUT_MS })
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY, status TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS run_events (run_id INTEGER NOT NULL, seq INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (run_id, seq));
@@ -41,7 +47,8 @@ function work(role: "web" | "worker", path: string, window: Window): Result {
   let written = 0
   let firstWriteAt = 0
   let lastWriteAt = 0
-  let longTx = 0
+  const longTx: Interval[] = []
+  const waits: Interval[] = []
   let busy = 0
   let maxWaitMs = 0
   let seq = 0
@@ -50,19 +57,22 @@ function work(role: "web" | "worker", path: string, window: Window): Result {
 
   while (Date.now() < window.end) {
     const t0 = performance.now()
+    const startedAt = Date.now()
     try {
       if (role === "web") {
         enqueue.run(Date.now())
         written++
       } else if (Date.now() - lastLongTx > 500) {
         // A slow step inside a write transaction, such as a large batch of events.
+        let lockedAt = 0
         sqlite.transaction(() => {
           for (let i = 0; i < 50; i++) append.run(process.pid, seq++, payload)
-          const hold = Date.now() + 150
+          lockedAt = Date.now()
+          const hold = lockedAt + 150
           while (Date.now() < hold) {}
         })()
         written += 50
-        longTx++
+        longTx.push([lockedAt, Date.now()])
         lastLongTx = Date.now()
       } else {
         append.run(process.pid, seq++, payload)
@@ -74,6 +84,7 @@ function work(role: "web" | "worker", path: string, window: Window): Result {
     }
     lastWriteAt = Date.now()
     firstWriteAt ||= lastWriteAt
+    if (lastWriteAt - startedAt > 20) waits.push([startedAt, lastWriteAt])
     maxWaitMs = Math.max(maxWaitMs, performance.now() - t0)
   }
   sqlite.close()
@@ -85,6 +96,7 @@ function work(role: "web" | "worker", path: string, window: Window): Result {
     firstWriteAt,
     lastWriteAt,
     longTx,
+    waits,
   }
 }
 
@@ -97,7 +109,7 @@ if (role === "web" || role === "worker") {
 } else {
   const dir = mkdtempSync(join(tmpdir(), "swdb-sp2-"))
   const file = join(dir, "swdb.sqlite")
-  openDb({ path: file }).sqlite.close()
+  openDb({ path: file, busyTimeoutMs: BUSY_TIMEOUT_MS }).sqlite.close()
   const self = fileURLToPath(import.meta.url)
   const children = (["web", "worker"] as const).map((r) => fork(self, [r, file]))
   await Promise.all(children.map((c) => new Promise((ready) => c.once("message", ready))))
@@ -121,20 +133,31 @@ if (role === "web" || role === "worker") {
 
   const web = results.find((r) => r.role === "web") as Result
   const worker = results.find((r) => r.role === "worker") as Result
-  // Both processes must have been writing during the same stretch of time. A long wait for
-  // the lock can delay a first or last write, so the shared stretch only has to cover half
-  // of the run.
+  // Both processes must have been writing during the same stretch of time, and the web
+  // process must have had a write waiting while the worker held a long transaction. That
+  // wait is the contention this spike is about.
   const overlapMs =
     Math.min(web.lastWriteAt, worker.lastWriteAt) - Math.max(web.firstWriteAt, worker.firstWriteAt)
-  console.table(results)
-  console.log(`rows in file: runs ${runs.n}, run_events ${events.n}, overlap ${overlapMs} ms`)
+  const contended = worker.longTx.filter(([start, end]) =>
+    web.waits.some(([from, to]) => from < end && to > start),
+  ).length
+  console.table(
+    results.map(({ longTx, waits, ...r }) => ({
+      ...r,
+      longTx: longTx.length,
+      waits: waits.length,
+    })),
+  )
+  console.log(
+    `busy timeout ${BUSY_TIMEOUT_MS} ms, rows in file: runs ${runs.n}, run_events ${events.n}, overlap ${overlapMs} ms, long transactions with a web write waiting: ${contended} of ${worker.longTx.length}`,
+  )
   const pass =
     web.busy === 0 &&
     worker.busy === 0 &&
     runs.n === web.written &&
     events.n === worker.written &&
     overlapMs >= DURATION_MS / 2 &&
-    worker.longTx >= 5
+    contended >= 5
   console.log(pass ? "PASS" : "FAIL")
   process.exit(pass ? 0 : 1)
 }

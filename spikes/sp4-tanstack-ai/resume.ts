@@ -176,6 +176,9 @@ if (role === "worker") {
     killedAt === 0 &&
     calls[0]?.name === "lookup_order" &&
     afterRestart.map((c) => c.name).join(",") === "lookup_order,carrier_status" &&
+    // The recovered calls must be about the same order and the carrier the lookup returned.
+    [calls[0], ...afterRestart].every((c) => String(c?.args?.orderNumber) === "4471") &&
+    String(afterRestart[1]?.args?.carrier).toLowerCase() === "postnord" &&
     effectsRun.join(",") === afterRestart.map((c) => c.id).join(",")
 
   console.log({
