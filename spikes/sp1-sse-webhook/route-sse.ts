@@ -7,6 +7,8 @@ export const Route = createFileRoute("/spike/sse")({
     handlers: {
       GET: ({ request }) => {
         const last = Number(request.headers.get("last-event-id") ?? 0)
+        // The test client sends an id per request, so a log line can be tied to one request.
+        const id = request.headers.get("x-sp1-request") ?? "-"
         const encoder = new TextEncoder()
         let seq = last
         let timer: ReturnType<typeof setInterval> | undefined
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/spike/sse")({
             }, 200)
             request.signal.addEventListener("abort", () => {
               clearInterval(timer)
-              log(`abort-signal after seq ${seq}`)
+              log(`abort-signal ${id} after seq ${seq}`)
               try {
                 controller.close()
               } catch {}
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/spike/sse")({
           },
           cancel() {
             clearInterval(timer)
-            log(`stream-cancel after seq ${seq}`)
+            log(`stream-cancel ${id} after seq ${seq}`)
           },
         })
         return new Response(stream, {

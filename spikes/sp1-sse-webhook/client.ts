@@ -1,18 +1,22 @@
 // Spike SP1 client. Run: node spikes/sp1-sse-webhook/client.ts http://127.0.0.1:4100 <server log file>
-import { createHmac } from "node:crypto"
+import { createHmac, randomUUID } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 
 const base = process.argv[2] ?? "http://127.0.0.1:4100"
 const logFile = process.argv[3]
 const results: Record<string, unknown> = {}
 const readLog = () =>
-  logFile && existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n") : []
+  logFile && existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean) : []
 // Lines already in the server log belong to earlier runs and do not count.
 const logBaseline = readLog().length
 
 async function readEvents(headers: Record<string, string>, count: number) {
   const controller = new AbortController()
-  const res = await fetch(`${base}/spike/sse`, { headers, signal: controller.signal })
+  const requestId = randomUUID()
+  const res = await fetch(`${base}/spike/sse`, {
+    headers: { ...headers, "x-sp1-request": requestId },
+    signal: controller.signal,
+  })
   if (!res.body) throw new Error("The SSE response has no body")
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
@@ -38,6 +42,7 @@ async function readEvents(headers: Record<string, string>, count: number) {
   controller.abort()
   const gaps = arrivals.slice(1).map((t, i) => Math.round(t - arrivals[i]))
   return {
+    requestId,
     status: res.status,
     type: res.headers.get("content-type"),
     encoding: res.headers.get("content-encoding"),
@@ -61,21 +66,14 @@ results.resumeOk = resumed.ids[0] === 42
 
 await new Promise((r) => setTimeout(r, 600))
 if (logFile) {
-  // Each of the two requests above must have fired request.signal: a stream-cancel line
-  // does not prove that. The server logs the event number it had reached, which is the last
-  // event the client read or the one after it.
+  // Each of the two requests above must have fired request.signal exactly once: a
+  // stream-cancel line does not prove that. Lines are matched on the request id, so other
+  // clients of the same server cannot satisfy the check.
   const log = readLog().slice(logBaseline)
-  const abortedAt = log.flatMap((line) => {
-    const m = line.match(/^abort-signal after seq (\d+)$/)
-    return m ? [Number(m[1])] : []
-  })
   results.serverLog = log
-  results.disconnectSeen =
-    abortedAt.length === 2 &&
-    [first, resumed].every((r) => {
-      const last = r.ids.at(-1) ?? Number.NaN
-      return abortedAt.some((seq) => seq >= last && seq <= last + 1)
-    })
+  results.disconnectSeen = [first, resumed].every(
+    (r) => log.filter((line) => line.startsWith(`abort-signal ${r.requestId} `)).length === 1,
+  )
 }
 
 const body = JSON.stringify({ action: "opened", number: 218, note: "åäö   spacing  kept" })
