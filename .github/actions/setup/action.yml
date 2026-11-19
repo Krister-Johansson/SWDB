@@ -1,0 +1,12 @@
+name: setup
+description: Installs pnpm, Node 26 and the workspace's dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 26
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

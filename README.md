@@ -33,6 +33,8 @@ Both open the same SQLite file in WAL mode. The file lives in `.data/swdb.sqlite
 pnpm check      # Biome lint and format check
 pnpm typecheck  # tsc in every workspace package
 pnpm test       # Vitest
+pnpm build      # production build of the web app
+pnpm doctor:react  # react-doctor scan of apps/web
 ```
 
 Worker and package code must use erasable TypeScript syntax only (no enums, parameter properties or decorators), because Node runs it without a build step.
