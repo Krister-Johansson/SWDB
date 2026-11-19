@@ -19,9 +19,13 @@ function workspaceRoot(): string {
   return dir
 }
 
-/** Folder for the SQLite file, artifacts and workspaces. Override with SWDB_DATA_DIR. */
+/**
+ * Folder for the SQLite file, artifacts and workspaces. Override with SWDB_DATA_DIR.
+ * A relative override resolves against the workspace root, because the web process and the
+ * worker start in different folders and must open the same file.
+ */
 export function dataDir(): string {
-  return process.env.SWDB_DATA_DIR ?? resolve(workspaceRoot(), ".data")
+  return resolve(workspaceRoot(), process.env.SWDB_DATA_DIR || ".data")
 }
 
 export function dbPath(): string {

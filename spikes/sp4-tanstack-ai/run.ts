@@ -10,6 +10,8 @@
 //   3. reasoning chunks arrive and the loop keeps working on a reasoning model
 //   4. a custom strategy can stop the loop on an accumulated cost budget
 //   5. an abort stops a run that is in progress
+// A model call is counted where it leaves the process: wrapFetch records every HTTP request
+// to OpenRouter, and the checks compare the middleware hooks against those requests.
 import { type ChatMiddleware, chat, maxIterations, toolDefinition } from "@tanstack/ai"
 import { openRouterText } from "@tanstack/ai-openrouter"
 import { z } from "zod"
@@ -62,9 +64,14 @@ const prompt =
   "Order 4471: first look it up, then ask its carrier for the delivery estimate, then answer in one sentence. Use the tools one at a time."
 
 type Trace = {
-  usage: { iteration: unknown; tokens: number; cost: number | undefined }[]
-  configs: { iteration: unknown; phase: unknown; keys: string[]; messages: number | undefined }[]
+  usage: { iteration: number; tokens: number; cost: number | undefined }[]
+  configs: { iteration: number; phase: string; keys: string[]; messages: number | undefined }[]
+  // Hooks and HTTP requests in the order they happened.
+  order: string[]
+  // Every answer of the loop strategy: whether the loop may continue, and what was spent.
+  decisions: { proceed: boolean; spent: number; overBudget: boolean }[]
   chunkTypes: Record<string, number>
+  abortFired: boolean
   finish: string | undefined
   error: string | undefined
 }
@@ -76,7 +83,10 @@ async function run(options: {
   const trace: Trace = {
     usage: [],
     configs: [],
+    order: [],
+    decisions: [],
     chunkTypes: {},
+    abortFired: false,
     finish: undefined,
     error: undefined,
   }
@@ -86,24 +96,29 @@ async function run(options: {
     name: "sp4-observer",
     onConfig: (ctx, config) => {
       const c = config as { messages?: unknown[] }
+      trace.order.push(`config:${ctx.phase}:${ctx.iteration}`)
       trace.configs.push({
-        iteration: (ctx as { iteration?: unknown }).iteration,
-        phase: (ctx as { phase?: unknown }).phase,
+        iteration: ctx.iteration,
+        phase: ctx.phase,
         keys: Object.keys(config as object),
         messages: c.messages?.length,
       })
     },
     onUsage: (ctx, usage) => {
       spent += usage.cost ?? 0
+      trace.order.push(`usage:${ctx.iteration}`)
       trace.usage.push({
-        iteration: (ctx as { iteration?: unknown }).iteration,
+        iteration: ctx.iteration,
         tokens: usage.totalTokens,
         cost: usage.cost,
       })
     },
     onChunk: (_ctx, chunk) => {
       trace.chunkTypes[chunk.type] = (trace.chunkTypes[chunk.type] ?? 0) + 1
-      if (options.abortAfterFirstToolCall && chunk.type === "TOOL_CALL_END") abortController.abort()
+      if (options.abortAfterFirstToolCall && chunk.type === "TOOL_CALL_END" && !trace.abortFired) {
+        trace.abortFired = true
+        abortController.abort()
+      }
     },
   }
   try {
@@ -114,8 +129,16 @@ async function run(options: {
       tools: [lookupOrder, carrierStatus],
       middleware: [observer],
       abortController,
-      agentLoopStrategy: (state) =>
-        maxIterations(8)(state) && (options.budget === undefined || spent <= options.budget),
+      wrapFetch: (next) => (input, init) => {
+        trace.order.push("request")
+        return next(input, init)
+      },
+      agentLoopStrategy: (state) => {
+        const overBudget = options.budget !== undefined && spent > options.budget
+        const proceed = maxIterations(8)(state) && !overBudget
+        trace.decisions.push({ proceed, spent, overBudget })
+        return proceed
+      },
     })) {
       if ("finishReason" in chunk) trace.finish = String(chunk.finishReason)
     }
@@ -134,20 +157,50 @@ const budget = await run({ budget: 0 })
 const budgetCalls = [...calls]
 calls.length = 0
 const aborted = await run({ abortAfterFirstToolCall: true })
+const abortedCalls = [...calls]
 
 const reasoningChunks = Object.keys(full.chunkTypes).filter((t) => t.startsWith("REASONING"))
+const requests = (t: Trace) => t.order.filter((o) => o === "request").length
+// For every HTTP request: the last hook before it is a beforeModel config, and the next
+// usage record after it comes before the following request.
+function everyRequestHasConfigAndUsage(t: Trace): boolean {
+  const at = t.order.flatMap((o, i) => (o === "request" ? [i] : []))
+  return at.every((i, n) => {
+    const before = t.order[i - 1] ?? ""
+    const until = at[n + 1] ?? t.order.length
+    const usage = t.order.slice(i + 1, until).filter((o) => o.startsWith("usage:"))
+    return before.startsWith("config:beforeModel:") && usage.length === 1
+  })
+}
+const iterations = full.usage.map((u) => u.iteration)
+const lastBudgetDecision = budget.decisions.at(-1)
 const checks = {
   "1 usage with cost once per model call":
-    full.usage.length >= 3 && full.usage.every((u) => typeof u.cost === "number"),
+    requests(full) === 3 &&
+    full.usage.length === requests(full) &&
+    new Set(iterations).size === iterations.length &&
+    full.usage.every((u) => typeof u.cost === "number" && u.cost > 0),
   "2 request config visible before every model call":
-    full.configs.filter((c) => c.messages !== undefined).length >= full.usage.length,
+    everyRequestHasConfigAndUsage(full) &&
+    full.configs.filter((c) => c.phase === "beforeModel").every((c) => c.messages !== undefined),
   "3 reasoning chunks seen and both tools ran in order":
     reasoningChunks.length > 0 &&
-    fullCalls.length === 2 &&
-    fullCalls[0]?.startsWith("lookup_order"),
+    fullCalls.join("|") === "lookup_order 4471|carrier_status postnord 4471",
+  // The first model call asked for a tool, so work was pending, and the strategy then
+  // refused to continue because the spend was over the budget.
   "4 cost budget stops the loop after the first model call":
-    budget.usage.length === 1 && budgetCalls.length <= 1,
-  "5 abort stops the run": aborted.usage.length < full.usage.length,
+    requests(budget) === 1 &&
+    budget.usage.length === 1 &&
+    budgetCalls.join("|") === "lookup_order 4471" &&
+    budget.error === undefined &&
+    lastBudgetDecision?.proceed === false &&
+    lastBudgetDecision.overBudget === true,
+  // The abort fired on the first tool call chunk, and the run then made no further model
+  // call and never reached the second tool.
+  "5 abort stops the run":
+    aborted.abortFired &&
+    requests(aborted) === 1 &&
+    !abortedCalls.some((c) => c.startsWith("carrier_status")),
 }
 
 console.log(
@@ -155,8 +208,21 @@ console.log(
     {
       full,
       fullCalls,
-      budget: { usage: budget.usage, calls: budgetCalls, finish: budget.finish },
-      aborted: { usage: aborted.usage, error: aborted.error, finish: aborted.finish },
+      budget: {
+        usage: budget.usage,
+        calls: budgetCalls,
+        decisions: budget.decisions,
+        order: budget.order,
+        finish: budget.finish,
+      },
+      aborted: {
+        abortFired: aborted.abortFired,
+        usage: aborted.usage,
+        calls: abortedCalls,
+        order: aborted.order,
+        error: aborted.error,
+        finish: aborted.finish,
+      },
       reasoningChunks,
     },
     null,

@@ -7,8 +7,10 @@
 // The parent kills the first worker with SIGKILL while the first tool is executing, then
 // starts a second worker. The second worker rebuilds the messages from run_events, adds a
 // synthetic "interrupted" result for the call that has none, and continues the run.
-// Pass: the run finishes, every tool call has exactly one result, the killed call is marked
-// interrupted and its side effect never ran, and no call's side effect ran twice.
+// Pass: the run finishes with an answer, every tool call has exactly one result, the killed
+// call is marked interrupted and its side effect never ran, no call's side effect ran twice,
+// and after the restart the model called lookup_order again and then carrier_status, and
+// both of those ran their side effect.
 import { fork } from "node:child_process"
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -81,29 +83,31 @@ async function worker(file: string, effects: string): Promise<void> {
   }
 
   // A tool runs its slow side effect, then records its own result before returning it.
-  let current = ""
-  const effect = <T extends object>(result: T): T => {
+  // The call id comes from the tool's own execution context, so two calls can never share one.
+  const effect = <T extends object>(id: string | undefined, result: T): T => {
+    if (!id) throw new Error("The tool ran without a tool call id")
     const until = Date.now() + 300
     while (Date.now() < until) {}
-    appendFileSync(effects, `${current}\n`)
-    append("tool_result", { id: current, content: result })
+    appendFileSync(effects, `${id}\n`)
+    append("tool_result", { id, content: result })
     return result
   }
   const lookupOrder = toolDefinition({
     name: "lookup_order",
     description: "Look up an order by its number",
     inputSchema: z.object({ orderNumber: z.string() }),
-  }).server(({ orderNumber }) => effect({ orderNumber, status: "delayed", carrier: "postnord" }))
+  }).server(({ orderNumber }, context) =>
+    effect(context?.toolCallId, { orderNumber, status: "delayed", carrier: "postnord" }),
+  )
   const carrierStatus = toolDefinition({
     name: "carrier_status",
     description: "Get the delivery estimate from a carrier for an order",
     inputSchema: z.object({ carrier: z.string(), orderNumber: z.string() }),
-  }).server(() => effect({ estimate: "2026-11-24" }))
+  }).server((_args, context) => effect(context?.toolCallId, { estimate: "2026-11-24" }))
 
   const log: ChatMiddleware = {
     name: "run-events",
     onBeforeToolCall: (_ctx, hook) => {
-      current = hook.toolCall.id
       append("tool_call", { id: hook.toolCall.id, name: hook.toolName, args: hook.args })
       if (!existsSync(`${effects}.killed`)) process.send?.("kill-me")
     },
@@ -116,6 +120,8 @@ async function worker(file: string, effects: string): Promise<void> {
     threadId: "sp4-resume",
     tools: [lookupOrder, carrierStatus],
     middleware: [log],
+    // One tool at a time, so each call is logged right before it runs.
+    toolExecution: "sequential",
     agentLoopStrategy: maxIterations(8),
   })) {
     if (chunk.type === "TEXT_MESSAGE_CONTENT") text += chunk.delta
@@ -162,6 +168,15 @@ if (role === "worker") {
   const results = events.filter((e) => e.type === "tool_result")
   const interrupted = results.filter((r) => r.interrupted).map((r) => r.id)
   const end = events.filter((e) => e.type === "run_end")
+  // The work the resumed run must have done: every call after the interrupted one, in order,
+  // with the side effect of each.
+  const killedAt = calls.findIndex((c) => c.id === interrupted[0])
+  const afterRestart = calls.slice(killedAt + 1)
+  const recovered =
+    killedAt === 0 &&
+    calls[0]?.name === "lookup_order" &&
+    afterRestart.map((c) => c.name).join(",") === "lookup_order,carrier_status" &&
+    effectsRun.join(",") === afterRestart.map((c) => c.id).join(",")
 
   console.log({
     model: MODEL,
@@ -179,7 +194,10 @@ if (role === "worker") {
     calls.every((c) => results.filter((r) => r.id === c.id).length === 1) &&
     interrupted.length === 1 &&
     !effectsRun.includes(interrupted[0]) &&
-    new Set(effectsRun).size === effectsRun.length
+    new Set(effectsRun).size === effectsRun.length &&
+    recovered &&
+    typeof end[0]?.text === "string" &&
+    end[0].text.trim().length > 0
   console.log(pass ? "PASS" : "FAIL")
   rmSync(dir, { recursive: true, force: true })
   process.exit(pass ? 0 : 1)
