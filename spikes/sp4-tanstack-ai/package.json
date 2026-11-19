@@ -1,0 +1,14 @@
+{
+  "name": "sp4-tanstack-ai",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node --env-file=../../.env run.ts",
+    "resume": "node --env-file=../../.env resume.ts"
+  },
+  "dependencies": {
+    "@tanstack/ai": "^1.5.0",
+    "@tanstack/ai-openrouter": "^1.1.2",
+    "zod": "^4.6.7"
+  }
+}

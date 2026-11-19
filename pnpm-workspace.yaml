@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+  - spikes/*
+
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  lightningcss: true
+  unrs-resolver: true
+  msw: false
+  "@openrouter/sdk": false
