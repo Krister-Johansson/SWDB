@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./heartbeat": "./src/heartbeat.ts",
-    "./migrate": "./src/migrate.ts"
+    "./migrate": "./src/migrate.ts",
+    "./schema": "./src/schema/index.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",

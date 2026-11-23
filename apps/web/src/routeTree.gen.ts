@@ -10,11 +10,29 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
+import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as SettingsSecretsRouteImport } from './routes/settings/secrets'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsIndexRoute = AgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
+  id: '/agents/$agentId',
+  path: '/agents/$agentId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsNewRoute = AgentsNewRouteImport.update({
+  id: '/agents/new',
+  path: '/agents/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsSecretsRoute = SettingsSecretsRouteImport.update({
@@ -25,28 +43,47 @@ const SettingsSecretsRoute = SettingsSecretsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/new': typeof AgentsNewRoute
   '/settings/secrets': typeof SettingsSecretsRoute
+  '/agents/': typeof AgentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/new': typeof AgentsNewRoute
   '/settings/secrets': typeof SettingsSecretsRoute
+  '/agents': typeof AgentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/new': typeof AgentsNewRoute
   '/settings/secrets': typeof SettingsSecretsRoute
+  '/agents/': typeof AgentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings/secrets'
+  fullPaths:
+    '/' | '/agents/$agentId' | '/agents/new' | '/settings/secrets' | '/agents/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings/secrets'
-  id: '__root__' | '/' | '/settings/secrets'
+  to: '/' | '/agents/$agentId' | '/agents/new' | '/settings/secrets' | '/agents'
+  id:
+    | '__root__'
+    | '/'
+    | '/agents/$agentId'
+    | '/agents/new'
+    | '/settings/secrets'
+    | '/agents/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsAgentIdRoute: typeof AgentsAgentIdRoute
+  AgentsNewRoute: typeof AgentsNewRoute
   SettingsSecretsRoute: typeof SettingsSecretsRoute
+  AgentsIndexRoute: typeof AgentsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +93,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/': {
+      id: '/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/$agentId': {
+      id: '/agents/$agentId'
+      path: '/agents/$agentId'
+      fullPath: '/agents/$agentId'
+      preLoaderRoute: typeof AgentsAgentIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/new': {
+      id: '/agents/new'
+      path: '/agents/new'
+      fullPath: '/agents/new'
+      preLoaderRoute: typeof AgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/secrets': {
@@ -70,7 +128,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsAgentIdRoute: AgentsAgentIdRoute,
+  AgentsNewRoute: AgentsNewRoute,
   SettingsSecretsRoute: SettingsSecretsRoute,
+  AgentsIndexRoute: AgentsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
