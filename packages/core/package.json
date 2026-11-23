@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agents": "./src/agents.ts",
+    "./models": "./src/models.ts",
     "./secrets": "./src/secrets.ts"
   },
   "scripts": {
