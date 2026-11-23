@@ -1,0 +1,15 @@
+{
+  "name": "@swdb/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./secrets": "./src/secrets.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swdb/db": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  }
+}

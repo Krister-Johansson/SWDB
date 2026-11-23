@@ -12,9 +12,9 @@ function Overview() {
   const router = useRouter()
 
   return (
-    <main className="mx-auto flex min-h-svh max-w-xl flex-col gap-6 p-8 text-sm">
+    <div className="flex max-w-xl flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">SWDB</h1>
+        <h1 className="text-xl font-semibold">Overview</h1>
         <p className="text-muted-foreground">
           The web process and the worker share one SQLite file.
         </p>
@@ -47,6 +47,6 @@ function Overview() {
           Refresh
         </Button>
       </section>
-    </main>
+    </div>
   )
 }

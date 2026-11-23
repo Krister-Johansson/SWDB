@@ -51,3 +51,14 @@ export const secrets = sqliteTable(
   },
   (t) => [uniqueIndex("secrets_name_unique").on(t.name)],
 )
+
+/**
+ * Data keys for the secret store. Each is a random AES-256 key, stored only wrapped
+ * (AES-256-GCM) under the master key, which lives outside the database.
+ */
+export const dataKeys = sqliteTable("data_keys", {
+  version: integer("version").primaryKey(),
+  wrappedKey: blob("wrapped_key", { mode: "buffer" }).notNull(),
+  nonce: blob("nonce", { mode: "buffer" }).notNull(),
+  createdAt: createdAt(),
+})
