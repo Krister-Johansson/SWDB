@@ -39,6 +39,12 @@ pnpm db:generate  # write a new migration after a schema change
 
 Commit the generated files in `packages/db/migrations`. `openDb()` does not create tables, so a process opened against an unmigrated file fails on its first query.
 
+## Secrets
+
+Settings > Secrets stores API keys and tokens encrypted with AES-256-GCM. The master key is `master.key` in the data folder, created on first use with mode 600. SWDB refuses to start the secret store if the file is readable by others. Set `SWDB_MASTER_KEY_FILE` to keep it elsewhere. If the file is lost, the stored secrets cannot be decrypted, so back it up separately from the database.
+
+Config values refer to a secret as `${secret:NAME}`. The harness replaces the reference when it makes the call.
+
 ## Checks
 
 ```bash
