@@ -296,7 +296,7 @@ export function listAgentVersions(db: Db, agentId: string) {
 }
 
 /** The version row a new run should point at. */
-export function currentAgentVersion(db: Db, agentId: string) {
+export function currentAgentVersion(db: Pick<Db, "select">, agentId: string) {
   return db
     .select()
     .from(schema.agentVersions)

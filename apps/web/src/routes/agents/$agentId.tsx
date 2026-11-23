@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start"
 import { useState } from "react"
 import { AgentForm } from "@/components/agent-form"
+import { RunNow } from "@/components/run-now"
 import { getAgentEditorFn, listModelsFn, saveAgentFn } from "@/server/agents"
 
 export const Route = createFileRoute("/agents/$agentId")({
@@ -24,7 +25,7 @@ function AgentPage() {
   if (!editor.agent) return null
 
   return (
-    <div className="grid gap-8 md:grid-cols-[1fr_14rem]">
+    <div className="grid gap-8 md:grid-cols-[1fr_18rem]">
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-xl font-semibold">{editor.agent.name}</h1>
@@ -49,7 +50,17 @@ function AgentPage() {
         />
         {saved && <p className="text-muted-foreground">Saved as version {saved}.</p>}
       </div>
-      <aside className="flex flex-col gap-2">
+      <aside className="flex flex-col gap-4">
+        <RunNow
+          agentId={agentId}
+          disabled={
+            editor.agent.pausedReason
+              ? `Paused: ${editor.agent.pausedReason}`
+              : editor.agent.enabled
+                ? null
+                : "The agent is turned off."
+          }
+        />
         <h2 className="font-medium">Versions</h2>
         <ol className="divide-y rounded-lg border text-xs">
           {editor.versions.map((v) => (

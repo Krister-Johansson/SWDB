@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as AgentsNewRouteImport } from './routes/agents/new'
+import { Route as RunsIndexRouteImport } from './routes/runs/index'
+import { Route as RunsRunIdRouteImport } from './routes/runs/$runId'
 import { Route as SettingsSecretsRouteImport } from './routes/settings/secrets'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +37,16 @@ const AgentsNewRoute = AgentsNewRouteImport.update({
   path: '/agents/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RunsIndexRoute = RunsIndexRouteImport.update({
+  id: '/runs/',
+  path: '/runs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RunsRunIdRoute = RunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsSecretsRoute = SettingsSecretsRouteImport.update({
   id: '/settings/secrets',
   path: '/settings/secrets',
@@ -45,45 +57,68 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
+  '/runs/$runId': typeof RunsRunIdRoute
   '/settings/secrets': typeof SettingsSecretsRoute
   '/agents/': typeof AgentsIndexRoute
+  '/runs/': typeof RunsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
+  '/runs/$runId': typeof RunsRunIdRoute
   '/settings/secrets': typeof SettingsSecretsRoute
   '/agents': typeof AgentsIndexRoute
+  '/runs': typeof RunsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
+  '/runs/$runId': typeof RunsRunIdRoute
   '/settings/secrets': typeof SettingsSecretsRoute
   '/agents/': typeof AgentsIndexRoute
+  '/runs/': typeof RunsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/agents/$agentId' | '/agents/new' | '/settings/secrets' | '/agents/'
+    | '/'
+    | '/agents/$agentId'
+    | '/agents/new'
+    | '/runs/$runId'
+    | '/settings/secrets'
+    | '/agents/'
+    | '/runs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agents/$agentId' | '/agents/new' | '/settings/secrets' | '/agents'
+  to:
+    | '/'
+    | '/agents/$agentId'
+    | '/agents/new'
+    | '/runs/$runId'
+    | '/settings/secrets'
+    | '/agents'
+    | '/runs'
   id:
     | '__root__'
     | '/'
     | '/agents/$agentId'
     | '/agents/new'
+    | '/runs/$runId'
     | '/settings/secrets'
     | '/agents/'
+    | '/runs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   AgentsNewRoute: typeof AgentsNewRoute
+  RunsRunIdRoute: typeof RunsRunIdRoute
   SettingsSecretsRoute: typeof SettingsSecretsRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  RunsIndexRoute: typeof RunsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +151,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/runs/': {
+      id: '/runs/'
+      path: '/runs'
+      fullPath: '/runs/'
+      preLoaderRoute: typeof RunsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/runs/$runId': {
+      id: '/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/runs/$runId'
+      preLoaderRoute: typeof RunsRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/secrets': {
       id: '/settings/secrets'
       path: '/settings/secrets'
@@ -130,8 +179,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   AgentsNewRoute: AgentsNewRoute,
+  RunsRunIdRoute: RunsRunIdRoute,
   SettingsSecretsRoute: SettingsSecretsRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  RunsIndexRoute: RunsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
