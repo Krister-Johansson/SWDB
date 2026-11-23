@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach, expect, test } from "vitest"
 import { beat, HEARTBEAT_STALE_MS, readHeartbeat } from "./heartbeat.ts"
 import { openDb } from "./index.ts"
+import { migrateDb } from "./migrate.ts"
 
 let dir: string
 
@@ -24,6 +25,7 @@ test("the database file opens in WAL mode", () => {
 test("a second connection reads the heartbeat the first one wrote", () => {
   const path = join(dir, "swdb.sqlite")
   const worker = openDb({ path })
+  migrateDb(worker)
   const web = openDb({ path })
 
   expect(readHeartbeat(web, "worker")).toBeNull()
@@ -42,6 +44,7 @@ test("a second connection reads the heartbeat the first one wrote", () => {
 
 test("a heartbeat older than the stale limit counts as not alive", () => {
   const db = openDb({ path: join(dir, "swdb.sqlite") })
+  migrateDb(db)
   beat(db, "worker", 1, 0, 0)
   expect(readHeartbeat(db, "worker", HEARTBEAT_STALE_MS + 1)?.alive).toBe(false)
   db.sqlite.close()
