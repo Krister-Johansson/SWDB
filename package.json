@@ -7,7 +7,9 @@
     "node": ">=26"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter web --filter worker dev",
+    "dev": "pnpm db:migrate && pnpm --parallel --filter web --filter worker dev",
+    "db:migrate": "pnpm --filter @swdb/db migrate",
+    "db:generate": "pnpm --filter @swdb/db generate",
     "check": "biome check .",
     "format": "biome check --write .",
     "typecheck": "pnpm -r typecheck",

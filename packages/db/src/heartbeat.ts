@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm"
 import type { Db } from "./index.ts"
-import { processHeartbeats } from "./schema.ts"
+import { processHeartbeats } from "./schema/system.ts"
 
 /** A process counts as alive when its last beat is newer than this. */
 export const HEARTBEAT_STALE_MS = 10_000

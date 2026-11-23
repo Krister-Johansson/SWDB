@@ -11,7 +11,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts two processes:
+`pnpm dev` applies pending database migrations, then starts two processes:
 
 - `apps/web`: the TanStack Start dashboard with shadcn/ui, on http://127.0.0.1:4100
 - `apps/worker`: the background process for agent runs, the schedule ticker and long-lived connections
@@ -20,12 +20,24 @@ Both open the same SQLite file in WAL mode. The file lives in `.data/swdb.sqlite
 
 ## Layout
 
-| Path          | Contents                                                              |
-| ------------- | --------------------------------------------------------------------- |
-| `apps/web`    | Dashboard, server functions, webhook and API routes                   |
-| `apps/worker` | Worker process, run with `node --watch` and TypeScript type stripping |
-| `packages/db` | SQLite connection, schema and queries shared by both processes        |
-| `spikes`      | Short experiments that settle open risks, one folder per spike issue  |
+| Path          | Contents                                                                   |
+| ------------- | -------------------------------------------------------------------------- |
+| `apps/web`    | Dashboard, server functions, webhook and API routes                        |
+| `apps/worker` | Worker process, run with `node --watch` and TypeScript type stripping      |
+| `packages/db` | SQLite connection, schema, migrations and queries shared by both processes |
+| `spikes`      | Short experiments that settle open risks, one folder per spike issue       |
+| `docs`        | The research report the issues refer to                                    |
+
+## Database
+
+The schema lives in `packages/db/src/schema`, one file per area. It follows the data model section of `docs/research-report.md`.
+
+```bash
+pnpm db:migrate   # apply pending migrations; creates the data folder and file if needed
+pnpm db:generate  # write a new migration after a schema change
+```
+
+Commit the generated files in `packages/db/migrations`. `openDb()` does not create tables, so a process opened against an unmigrated file fails on its first query.
 
 ## Checks
 

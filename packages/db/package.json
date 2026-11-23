@@ -4,9 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./heartbeat": "./src/heartbeat.ts"
+    "./heartbeat": "./src/heartbeat.ts",
+    "./migrate": "./src/migrate.ts"
   },
   "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "node src/migrate-cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -14,6 +17,7 @@
     "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0"
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.11"
   }
 }
