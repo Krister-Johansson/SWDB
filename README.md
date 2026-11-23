@@ -18,15 +18,25 @@ pnpm dev
 
 Both open the same SQLite file in WAL mode. The file lives in `.data/swdb.sqlite`. Set `SWDB_DATA_DIR` to move it.
 
+## Try a run
+
+1. `pnpm dev`, then open http://127.0.0.1:4100.
+2. Settings > Secrets: add `OPENROUTER_API_KEY` with your OpenRouter key.
+3. Agents > New agent: give it a name, pick a model (for example `openai/gpt-oss-20b`), write instructions, and save.
+4. On the agent page, write a prompt under Run now and press the button.
+
+The run page shows the transcript, the cost, and every model call with the exact request body and the response chunks. It refreshes every second until the run ends. The worker picks up queued runs within half a second. If the worker is killed mid-run, the next worker resumes the run once its 30-second lease lapses.
+
 ## Layout
 
-| Path          | Contents                                                                   |
-| ------------- | -------------------------------------------------------------------------- |
-| `apps/web`    | Dashboard, server functions, webhook and API routes                        |
-| `apps/worker` | Worker process, run with `node --watch` and TypeScript type stripping      |
-| `packages/db` | SQLite connection, schema, migrations and queries shared by both processes |
-| `spikes`      | Short experiments that settle open risks, one folder per spike issue       |
-| `docs`        | The research report the issues refer to                                    |
+| Path            | Contents                                                                   |
+| --------------- | -------------------------------------------------------------------------- |
+| `apps/web`      | Dashboard, server functions, webhook and API routes                        |
+| `apps/worker`   | Worker process, run with `node --watch` and TypeScript type stripping      |
+| `packages/core` | Secret store, agents, run queue and the harness loop on TanStack AI        |
+| `packages/db`   | SQLite connection, schema, migrations and queries shared by both processes |
+| `spikes`        | Short experiments that settle open risks, one folder per spike issue       |
+| `docs`          | The research report the issues refer to                                    |
 
 ## Database
 

@@ -5,6 +5,10 @@
   "exports": {
     "./agents": "./src/agents.ts",
     "./models": "./src/models.ts",
+    "./runs/events": "./src/runs/events.ts",
+    "./runs/harness": "./src/runs/harness.ts",
+    "./runs/queue": "./src/runs/queue.ts",
+    "./runs/read": "./src/runs/read.ts",
     "./secrets": "./src/secrets.ts"
   },
   "scripts": {
@@ -12,6 +16,9 @@
   },
   "dependencies": {
     "@swdb/db": "workspace:*",
-    "drizzle-orm": "^0.45.4"
+    "@tanstack/ai": "^1.5.0",
+    "@tanstack/ai-openrouter": "^1.1.2",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   }
 }
